@@ -144,6 +144,7 @@ const Database = require("./database");
 
 log.debug("server", "Importing Background Jobs");
 const { initBackgroundJobs, stopBackgroundJobs } = require("./jobs");
+const { createDatabaseBackup, testBackupConnection } = require("./jobs/backup");
 const { loginRateLimiter, twoFaRateLimiter } = require("./rate-limiter");
 
 const { apiAuth } = require("./auth");
@@ -1474,6 +1475,28 @@ let needSetup = false;
                     msg: e.message,
                     msgi18n: !!e.msgi18n,
                 });
+            }
+        });
+
+        socket.on("backupDatabaseNow", async (callback) => {
+            try {
+                checkLogin(socket);
+                const config = await Settings.get("backupConfig");
+                const result = await createDatabaseBackup(config);
+                await Settings.set("backupLastRun", Date.now(), "general");
+                callback({ ok: true, data: result });
+            } catch (e) {
+                callback({ ok: false, msg: e.message });
+            }
+        });
+
+        socket.on("testBackupConnection", async (config, callback) => {
+            try {
+                checkLogin(socket);
+                await testBackupConnection(config);
+                callback({ ok: true });
+            } catch (e) {
+                callback({ ok: false, msg: e.message });
             }
         });
 
