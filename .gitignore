@@ -25,3 +25,12 @@ extra/exe-builder/obj
 .vs
 .vscode
 .devcontainer
+
+# AI Agents & IDE Rules
+CLAUDE.md
+Claude.md
+AGENTS.md
+Agents.md
+mental-model.md
+.zed/
+.serena/
