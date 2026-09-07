@@ -1681,6 +1681,39 @@
 
                             <h2 v-if="monitor.type !== 'push'" class="mt-5 mb-2">{{ $t("Advanced") }}</h2>
 
+                            <div v-if="monitor.type !== 'push'" class="my-3 form-check">
+                                <input
+                                    id="latency-spike-enabled"
+                                    v-model="monitor.latencySpikeEnabled"
+                                    class="form-check-input"
+                                    type="checkbox"
+                                />
+                                <label class="form-check-label" for="latency-spike-enabled">
+                                    {{ $t("Latency Spike Alert") }}
+                                </label>
+                                <div class="form-text">
+                                    {{ $t("latencySpikeAlertDescription") }}
+                                </div>
+                            </div>
+
+                            <div v-if="monitor.type !== 'push' && monitor.latencySpikeEnabled" class="my-3">
+                                <label for="latency-spike-threshold" class="form-label">
+                                    {{ $t("Spike Threshold (ms)") }}
+                                </label>
+                                <input
+                                    id="latency-spike-threshold"
+                                    v-model.number="monitor.latencySpikeThreshold"
+                                    type="number"
+                                    class="form-control"
+                                    min="1"
+                                    step="1"
+                                    required
+                                />
+                                <div class="form-text">
+                                    {{ $t("latencySpikeThresholdDescription") }}
+                                </div>
+                            </div>
+
                             <div
                                 v-if="
                                     monitor.type === 'http' ||
