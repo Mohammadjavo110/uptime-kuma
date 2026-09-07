@@ -70,6 +70,7 @@
         "create-release": "node ./extra/release/create-release.mjs"
     },
     "dependencies": {
+        "@aws-sdk/client-s3": "^3.1116.0",
         "@grpc/grpc-js": "~1.8.22",
         "@louislam/ping": "~0.4.4-mod.1",
         "@louislam/sqlite3": "15.1.6",
@@ -97,6 +98,7 @@
         "form-data": "~4.0.5",
         "gamedig": "~5.3.2",
         "globalping": "~0.2.0",
+        "googleapis": "^150.0.1",
         "html-escaper": "~3.0.3",
         "http-cookie-agent": "~5.0.4",
         "http-graceful-shutdown": "~3.1.15",

@@ -150,6 +150,8 @@ class Monitor extends BeanModel {
             retryInterval: this.retryInterval,
             retryOnlyOnStatusCodeFailure: Boolean(this.retry_only_on_status_code_failure),
             resendInterval: this.resendInterval,
+            latencySpikeEnabled: Boolean(this.latency_spike_enabled),
+            latencySpikeThreshold: this.latency_spike_threshold,
             keyword: this.keyword,
             invertKeyword: this.isInvertKeyword(),
             expiryNotification: this.isEnabledExpiryNotification(),
@@ -414,6 +416,8 @@ class Monitor extends BeanModel {
     async start(io) {
         let previousBeat = null;
         let retries = 0;
+        const latencyDurations = [];
+        let latencySpikeAlertActive = false;
 
         this.rootCertificates = rootCertificates;
 
@@ -955,6 +959,41 @@ class Monitor extends BeanModel {
                 }
             }
 
+            if (bean.status === UP && bean.ping !== undefined && bean.ping !== null) {
+                const duration = Number(bean.ping);
+
+                if (!Number.isFinite(duration)) {
+                    latencySpikeAlertActive = false;
+                } else {
+                    const latencyBaseline = latencyDurations.length
+                        ? latencyDurations.reduce((sum, value) => sum + value, 0) / latencyDurations.length
+                        : duration;
+
+                    latencyDurations.push(duration);
+                    if (latencyDurations.length > 15) {
+                        latencyDurations.shift();
+                    }
+
+                    const latencySpikeEnabled = Boolean(this.latency_spike_enabled);
+                    const latencySpikeThreshold = Number(this.latency_spike_threshold);
+                    const isLatencySpike =
+                        latencySpikeEnabled && latencySpikeThreshold > 0 && duration > latencySpikeThreshold;
+
+                    if (isLatencySpike && !latencySpikeAlertActive) {
+                        latencySpikeAlertActive = true;
+                        await Monitor.sendNotification(false, this, bean, "LATENCY_SPIKE", {
+                            duration,
+                            baseline: Math.round(latencyBaseline),
+                            threshold: latencySpikeThreshold,
+                        });
+                    } else if (!isLatencySpike) {
+                        latencySpikeAlertActive = false;
+                    }
+                }
+            } else if (!Boolean(this.latency_spike_enabled)) {
+                latencySpikeAlertActive = false;
+            }
+
             bean.retries = retries;
 
             log.debug("monitor", `[${this.name}] Check isImportant`);
@@ -1447,22 +1486,35 @@ class Monitor extends BeanModel {
      * @param {boolean} isFirstBeat Is this beat the first of this monitor?
      * @param {Monitor} monitor The monitor to send a notification about
      * @param {import("./heartbeat")} bean Status information about monitor
+     * @param {string|null} notificationType Optional notification type
+     * @param {object|null} notificationData Optional notification metadata
      * @returns {Promise<void>}
      */
-    static async sendNotification(isFirstBeat, monitor, bean) {
-        if (!isFirstBeat || bean.status === DOWN) {
+    static async sendNotification(isFirstBeat, monitor, bean, notificationType = null, notificationData = null) {
+        if (!isFirstBeat || bean.status === DOWN || notificationType) {
             const notificationList = await Monitor.getNotificationList(monitor);
 
             let text;
-            if (bean.status === UP) {
+            if (notificationType === "LATENCY_SPIKE") {
+                text = "⚠️ Latency Spike";
+            } else if (bean.status === UP) {
                 text = "✅ Up";
             } else {
                 text = "🔴 Down";
             }
 
             let msg = `[${monitor.name}] [${text}] ${bean.msg}`;
+            if (notificationType === "LATENCY_SPIKE" && notificationData) {
+                msg = `[${monitor.name}] [${text}] Response time ${notificationData.duration} ms exceeded the ${notificationData.threshold} ms threshold (SMA: ${notificationData.baseline} ms)`;
+            }
 
             const heartbeatJSON = await bean.toJSONAsync({ decodeResponse: true });
+            if (notificationType) {
+                heartbeatJSON.notificationType = notificationType;
+            }
+            if (notificationData) {
+                heartbeatJSON.notificationData = notificationData;
+            }
             const monitorData = [{ id: monitor.id, active: monitor.active, name: monitor.name }];
             const preloadData = await Monitor.preparePreloadData(monitorData);
             // Prevent if the msg is undefined, notifications such as Discord cannot send out.
